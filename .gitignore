@@ -1,0 +1,48 @@
+*.class
+*.log
+.bookmark
+
+# sbt specific
+.cache/
+.history/
+.lib/
+dist/*
+target/
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
+
+# Scala-IDE specific
+.scala_dependencies
+.worksheet
+.target
+.cache
+.classpath
+.project
+.settings/
+
+# Intellij specific
+*.iml
+*.idea/
+*.idea_modules/
+
+# Sublime specific
+*.sublime-project
+*.sublime-workspace
+
+# OS specific
+.DS_Store
+
+# Akka Persistence
+journal/
+snapshots/
+
+# sbt-koan
+.koan*
+
+# CourseGen
+.tag
+
+# Application specific
+*out.wav
