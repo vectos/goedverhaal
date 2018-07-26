@@ -5,10 +5,9 @@ import cats._
 import scala.util.control.NonFatal
 
 /**
-  * A Saga is an specialised effect Monad which can execute any effectful F[_] type which has a MonadError instance.
-  * You could also call this the 'do-undo' monad as it keeps track of undo actions.
-  *
+  * A Saga is a Monad which can execute any effectful F[_] type which has a MonadError instance.
   * If there occurs any error it will execute the given compensating action.
+  * You could also call this the 'do-undo' monad as it keeps track of undo actions.
   *
   * @tparam F The effect type, this should have a `MonadError` instance in order to run
   * @tparam A The output type
