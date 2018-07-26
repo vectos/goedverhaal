@@ -4,12 +4,6 @@ goed verhaal
 A compensating (do-undo) effect Monad. Run effects which have a `MonadError` instance, when they fail all the accumulated compensating actions will be executed in order to reverse the effects.
 
 
-### What does 'goed verhaal' mean?
-
-*Goed verhaal* is dutch for a *good story*. This library resides around this concept as we'll introduce a `Saga` Monad. Sagas are stories mostly about ancient Nordic and Germanic history, early Viking voyages, the battles that took place during the voyages, and migration to Iceland and of feuds between Icelandic families. This is why the library is called *good story* (phun intended).
-
-A Saga is also a concept which comes from the DDD (Domain Driven Design) landscape. There they are long running processes which also need compensating actions, but are persistable. The scope of this library is not to offer that. It's only for short running processes which need compensating actions.
-
 ### Why?
 
 Real world examples? Well I've been working on a few projects where people interleave I/O interactions like first going to an API, persist something in the database, fetch something from the database and then go another API and so on. What if something breaks? `Future.recoverWith` only works with *one* `Future`.
@@ -44,4 +38,10 @@ def prg(ref: Ref[IO, Int]): Saga[IO, Unit] = for {
 
 The outcome of `main` will be zero, as the `prg` will crash at the end. The first action will increase the `Ref[IO, Int]` to `1000`, but since it crashes the compensating action will roll it back to `0`.
 
+### What does 'goed verhaal' mean?
 
+*Goed verhaal* is dutch for a *good story*. This library resides around this concept as we'll introduce a `Saga` Monad. Sagas are stories mostly about ancient Nordic and Germanic history, early Viking voyages, the battles that took place during the voyages, and migration to Iceland and of feuds between Icelandic families. This is why the library is called *good story* (phun intended).
+
+[Viking](https://nerdgeistdotcom.files.wordpress.com/2017/12/30b97ff83bf648e9dec82c58f3be35e6-vikings-tv-show-vikings-floki.jpg)
+
+A Saga is also a concept which comes from the DDD (Domain Driven Design) landscape. There they are long running processes which also need compensating actions, but are persistable. The scope of this library is not to offer that. It's only for short running processes which need compensating actions.
