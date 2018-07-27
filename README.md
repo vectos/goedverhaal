@@ -1,14 +1,15 @@
-<img alt="Goodddd Saga bro!" align=right src="https://nerdgeistdotcom.files.wordpress.com/2017/12/30b97ff83bf648e9dec82c58f3be35e6-vikings-tv-show-vikings-floki.jpg"/>
+<img alt="Goodddd Saga bro!" align="right" style="max-width: 400px" src="https://nerdgeistdotcom.files.wordpress.com/2017/12/30b97ff83bf648e9dec82c58f3be35e6-vikings-tv-show-vikings-floki.jpg"/>
 
-goed verhaal
----
+# goed verhaal
 
-A compensating (do-undo) effect Monad. Run effects which have a `cats.effect.Sync` instance. When one thing breaks at the end, all the accumulated compensating actions will be executed in order to reverse the effects.
+Run effects which have a `cats.effect.Sync` instance. When one thing breaks at the end, all the accumulated compensating actions will be executed in order to reverse the effects.
 
 
 ### Motivation
 
-I think we've been all working on a project where you have to mix API calls and database interactions in one go. So for example first going to an API, persist something in the database, fetch something from the database and then go another API and so on. What if something breaks? `Future.recoverWith` only works with *one* `Future`.
+I think we've been all working on a project where you have to mix API calls and database interactions in one go. So for example first going to an API, persist something in the database, fetch something from the database and then go another API and so on. What if something breaks? `Future.recoverWith` only works with *one* `Future`. This library keeps track of all the compensating actions accumulated so far.
+
+The key is `cats.effect.Sync` which is a type class which constrains the computations to be lazy evaluated and not eagerly like a `Future`.
 
 A real world example is a financial system, which reaches out to some 3rd party API and does it's own bookkeeping and then reaches out to another API. Thanks to a Saga we can undo the API call if the database is down for example.
 
@@ -26,17 +27,22 @@ import scala.util.control.NonFatal
 
 
 def prg(ref: Ref[IO, Int]): Saga[IO, Unit] = for {
+  // inrease the ref by 500
   _ <- Saga.recoverable(ref.tryUpdate(_ + 1), ref.tryUpdate(_ - 1) *> IO.unit).replicateA(500)
+  // increase the ref by another 500
   _ <- Saga.recoverable(ref.tryUpdate(_ + 1), ref.tryUpdate(_ - 1) *> IO.unit).replicateA(500)
+  // crash the program
   _ <- Saga.nonRecoverable[IO, Nothing](IO.raiseError(new Throwable("Error")))
 } yield ()
 
 def main: IO[Int] = for {
+  // initiate a ref
   ref <- Ref.of[IO, Int](0)
+  // execute the program
   _ <- prg(ref).run.recoverWith { case NonFatal(ex) => IO.unit }
+  // get the current value of ref, which should be 0
   current <- ref.get
 } yield current
-} yield ()
 
 ```
 
@@ -79,9 +85,9 @@ The outcome of `main` will be zero, as the `prg` will be `Left` at the end. `dec
 
 `def decide[B](f: (A, List[F[Unit]]) => F[B])(implicit F: Sync[F]): F[B]`
 
-So we plugin `def decider(value: Either[String, Unit], compensatingActions: List[IO[Unit]]): IO[Unit]` to decide over the output of the `EitherT` computation what to do. Since we go the stack of compensating actions in our hands we can decide to rollback when meets a special condition. In this case we rollback on a `Left`.
+So we pass in the function `def decider(value: Either[String, Unit], compensatingActions: List[IO[Unit]]): IO[Unit]` to decide over the output of the `EitherT` computation. Since we got the stack of compensating actions in our hands we can decide to rollback when it meets a special condition. In this case we rollback when we receive a `Left` value.
 
-If any `IO` effect would cause an effect in between it will never reach the `f` function as defined as above. It will rollback all the actions instead.
+If any `IO` effect would cause a `Exception` in between, it will never reach the `f` function as defined as above. It will execute all the compensating actions accumulated up till that point.
 
 ### What does 'goed verhaal' mean?
 
