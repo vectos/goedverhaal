@@ -1,4 +1,4 @@
-<img alt="Goodddd Saga bro!" align="right" style="max-width: 400px" src="https://nerdgeistdotcom.files.wordpress.com/2017/12/30b97ff83bf648e9dec82c58f3be35e6-vikings-tv-show-vikings-floki.jpg"/>
+<img alt="Goodddd Saga bro!" src="https://nerdgeistdotcom.files.wordpress.com/2017/12/30b97ff83bf648e9dec82c58f3be35e6-vikings-tv-show-vikings-floki.jpg"/>
 
 # goed verhaal
 
