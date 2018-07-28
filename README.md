@@ -2,6 +2,9 @@
 
 # goed verhaal
 
+[![Build Status](https://api.travis-ci.org/vectos/goedverhaal.svg)](https://travis-ci.org/vectos/goedverhaal)
+[![codecov.io](http://codecov.io/github/vectos/goedverhaal/coverage.svg?branch=master)](http://codecov.io/github/vectos/goedverhaal?branch=master)
+
 Run effects which have a `cats.effect.Sync` instance. When one thing breaks at the end, all the accumulated compensating actions will be executed in order to reverse the effects.
 
 
