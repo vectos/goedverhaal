@@ -12,10 +12,12 @@ class SagaLawsSpec extends FunSuite with Discipline {
 
   checkAll("Monad[Saga[IO, ?]] laws", MonadTests[Saga[IO,?]].monad[Int, Int, Int])
 
-  implicit val arbSagaInt: Arbitrary[Saga[IO, Int]] =
+  implicit def arbSagaInt: Arbitrary[Saga[IO, Int]] =
     Arbitrary(Gen.choose(Int.MinValue, Int.MaxValue).map(Saga.pure[IO, Int]))
-  implicit val arbSagaIntFunc: Arbitrary[Saga[IO, Int => Int]] =
+
+  implicit def arbSagaIntFunc: Arbitrary[Saga[IO, Int => Int]] =
     Arbitrary(Gen.choose(Int.MinValue, Int.MaxValue).map(v => Saga.pure[IO, Int => Int]((x: Int) => x * v)))
+
   implicit def eqSaga[A]: Eq[Saga[IO, A]] =
     Eq.instance { case (x, y) => x.run.unsafeRunSync() == y.run.unsafeRunSync() }
 }

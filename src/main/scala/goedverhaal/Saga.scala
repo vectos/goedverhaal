@@ -2,6 +2,7 @@ package goedverhaal
 
 import cats._
 import cats.effect.Sync
+import cats.implicits._
 
 import scala.util.control.NonFatal
 
@@ -48,13 +49,16 @@ sealed abstract class Saga[F[_], A] {
     def loop[X](step: Saga[F, X], stack: List[F[Unit]]): F[(A, List[F[Unit]])] = step match {
       case Saga.Pure(a) =>
         F.pure(a.asInstanceOf[A] -> stack)
-      case Saga.Next(action, compensate) =>
-        F.onError(action.asInstanceOf[F[(A, List[F[Unit]])]]) { case NonFatal(_) => compensate }
+      case Saga.Next(action, _) =>
+        action.asInstanceOf[F[(A, List[F[Unit]])]]
       case Saga.Bind(fa, bind) => fa match {
         case Saga.Pure(a) =>
           loop(bind(a), stack)
         case Saga.Next(action, compensate) =>
-          F.onError(F.flatMap(action) { x => loop(bind(x), compensate :: stack) }) { case NonFatal(_) => compensate }
+          F.onError(F.flatMap(action) { x => loop(bind(x), compensate(x) :: stack) }) {
+            case Saga.Halted(_) => F.unit
+            case NonFatal(ex) => stack.sequence *> F.raiseError(Saga.Halted(ex))
+          }
         case Saga.Bind(fb, bb) =>
           loop(Saga.Bind(fb, (b: Any) => Saga.Bind(bb(b), bind)), stack)
       }
@@ -65,8 +69,11 @@ sealed abstract class Saga[F[_], A] {
 }
 
 object Saga {
+
+  final case class Halted(throwable: Throwable) extends Throwable
+
   protected [goedverhaal] case class Pure[F[_], A](action: A) extends Saga[F, A]
-  protected [goedverhaal] case class Next[F[_], A](action: F[A], compensate: F[Unit]) extends Saga[F, A]
+  protected [goedverhaal] case class Next[F[_], A](action: F[A], compensate: A => F[Unit]) extends Saga[F, A]
   protected [goedverhaal] case class Bind[F[_], A, B](fa: Saga[F, A], f: A => Saga[F, B]) extends Saga[F, B]
 
   /**
@@ -88,7 +95,7 @@ object Saga {
     * @tparam A The value type
     * @return A Saga
     */
-  def recoverable[F[_], A](comp: F[A], rollback: F[Unit]): Saga[F, A] =
+  def recoverable[F[_], A](comp: F[A])(rollback: A => F[Unit]): Saga[F, A] =
     Next(comp, rollback)
 
   /**
@@ -100,7 +107,7 @@ object Saga {
     * @return A Saga
     */
   def nonRecoverable[F[_], A](comp: F[A])(implicit F: Applicative[F]): Saga[F, A] =
-    Next(comp, F.unit)
+    Next(comp, _ => F.unit)
 
   implicit def monad[F[_]]: Monad[Saga[F, ?]] = new Monad[Saga[F, ?]] {
     override def pure[A](x: A): Saga[F, A] = Saga.pure(x)
