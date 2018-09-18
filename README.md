@@ -12,7 +12,7 @@ Run effects which have a `cats.effect.Sync` instance. When one thing breaks at t
 
 I think we've been all working on a project where you have to mix API calls and database interactions in one go. So for example first going to an API, persist something in the database, fetch something from the database and then go another API and so on. What if something breaks? `Future.recoverWith` only works with *one* `Future`. This library keeps track of all the compensating actions accumulated so far.
 
-The key is `cats.effect.Sync` which is a type class which constrains the computations to be lazy evaluated and not eagerly like a `Future`.
+The key is `cats.effect.Sync` which is a type class which constrains the actions to be lazy evaluated and not eagerly like a `Future`.
 
 A real world example is a financial system, which reaches out to some 3rd party API and does it's own bookkeeping and then reaches out to another API. Thanks to a Saga we can undo the API call if the database is down for example.
 
@@ -80,7 +80,7 @@ The outcome of `main` will be zero, as the `prg` will be `Left` at the end. `dec
 
 `def decide[B](f: (A, List[F[Unit]]) => F[B])(implicit F: Sync[F]): F[B]`
 
-So we pass in the function `def decider(value: Either[String, Unit], compensatingActions: List[IO[Unit]]): IO[Unit]` to decide over the output of the `EitherT` computation. Since we got the stack of compensating actions in our hands we can decide to rollback when it meets a special condition. In this case we rollback when we receive a `Left` value.
+So we pass in the function `def decider(value: Either[String, Unit], compensatingActions: List[IO[Unit]]): IO[Unit]` to decide over the output of the `EitherT` action. Since we got the stack of compensating actions in our hands we can decide to rollback when it meets a special condition. In this case we rollback when we receive a `Left` value.
 
 If any `IO` effect would cause a `Exception` in between, it will never reach the `f` function as defined as above. It will execute all the compensating actions accumulated up till that point.
 

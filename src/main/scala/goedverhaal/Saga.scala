@@ -33,10 +33,10 @@ sealed abstract class Saga[F[_], A] {
   /**
     * Execute all the actions inside the Saga. If any error occurs, it will compensate the actions
     *
-    * However you'll be able to decide what to do if manages to run the computation successfully with a function.
-    * This function receives the value which is returned by the computation, plus a stack of the compensating actions
+    * However you'll be able to decide what to do if manages to run the action successfully with a function.
+    * This function receives the value which is returned by the action, plus a stack of the compensating actions
     * which are collected over time by executing the Saga. This could be useful when you use an `EitherT` for example
-    * and you want to rollback all the effects when a Left comes out of the computation.
+    * and you want to rollback all the effects when a Left comes out of the action.
     *
     * @param f The decide function which allows you to execute the compensating actions
     * @param F The effect type, this should have a `cats.effect.Sync` instance in order to run
@@ -87,10 +87,10 @@ object Saga {
     Pure(value)
 
   /**
-    * Lifts a 'do' computation and 'undo' computation inside the Saga
+    * Lifts a 'do' action and 'undo' action inside the Saga
     *
-    * @param comp The do computation
-    * @param rollback The undo computation
+    * @param comp The do action
+    * @param rollback The undo action
     * @param F The effect type, this should have a `cats.effect.Sync` instance in order to run
     * @tparam A The value type
     * @return A Saga
@@ -99,9 +99,9 @@ object Saga {
     Next(comp, rollback)
 
   /**
-    * Lifts a 'do' computation, but it has no undo computation.
+    * Lifts a 'do' action, but it has no undo action.
     *
-    * @param comp The do computation
+    * @param comp The do action
     * @param F The effect type, this should have a `cats.effect.Sync` instance in order to run
     * @tparam A The value type
     * @return A Saga
