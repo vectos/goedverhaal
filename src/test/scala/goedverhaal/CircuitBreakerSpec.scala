@@ -25,7 +25,7 @@ class CircuitBreakerSpec extends FunSuite with Matchers with ScalaFutures {
   test("should transition to open state after a few failures") {
     def prg = for {
       circuitBreaker <- cb
-      _ <- circuitBreaker.protect(fail).handleErrorWith { case NonFatal(_) => IO.unit }.replicateA(4)
+      _ <- circuitBreaker.protect(fail).handleErrorWith { case NonFatal(_) => IO.unit } replicateA 3
       _ <- circuitBreaker.protect(fail)
     } yield ()
 
@@ -35,10 +35,7 @@ class CircuitBreakerSpec extends FunSuite with Matchers with ScalaFutures {
   test("should transition to open state after a few timeouts") {
     def prg = for {
       circuitBreaker <- cb
-      _ <- circuitBreaker.protect(timeout).handleErrorWith { case NonFatal(_) => IO.unit }
-      _ <- circuitBreaker.protect(timeout).handleErrorWith { case NonFatal(_) => IO.unit }
-      _ <- circuitBreaker.protect(timeout).handleErrorWith { case NonFatal(_) => IO.unit }
-      _ <- circuitBreaker.protect(timeout).handleErrorWith { case NonFatal(_) => IO.unit }
+      _ <- circuitBreaker.protect(timeout).handleErrorWith { case NonFatal(_) => IO.unit } replicateA 3
       _ <- circuitBreaker.protect(fail)
     } yield ()
 
@@ -48,7 +45,7 @@ class CircuitBreakerSpec extends FunSuite with Matchers with ScalaFutures {
   test("should transition to closed") {
     def prg = for {
       circuitBreaker <- cb
-      _ <- circuitBreaker.protect(fail).handleErrorWith { case NonFatal(_) => IO.unit }.replicateA(4)
+      _ <- circuitBreaker.protect(fail).handleErrorWith { case NonFatal(_) => IO.unit } replicateA 3
       _ <- timer.sleep(resetTimeout)
       _ <- circuitBreaker.protect(IO.unit)
     } yield ()

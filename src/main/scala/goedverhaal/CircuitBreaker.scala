@@ -1,81 +1,70 @@
 package goedverhaal
 
-import java.util.concurrent.TimeUnit
-
-import cats.effect.concurrent.{MVar, Ref}
-import cats.effect.{Concurrent, Sync, Timer}
-import cats.effect.implicits._
+import cats.effect.concurrent.Ref
+import cats.effect.{Concurrent, Timer}
 import cats.implicits._
+import goedverhaal.CircuitBreaker.OpenException
 
 import scala.concurrent.duration.FiniteDuration
 import scala.util.control.NoStackTrace
 
-final class CircuitBreaker[F[_] : Concurrent : Timer] private (state: MVar[F, CircuitBreaker.State], settings: CircuitBreaker.Settings) {
+final class CircuitBreaker[F[_] : Concurrent : Timer] private (state: Ref[F, CircuitBreakerState], settings: CircuitBreaker.Settings) {
+
+  private val F = implicitly[Concurrent[F]]
+
   def protect[A](effect: F[A]): F[A] =
     for {
-      current <- state.read
-      res <- current.protect(effect, settings, state)
+      current <- state.get
+      res <- current match {
+        case CircuitBreakerState.HalfOpen         => F.raiseError(OpenException)
+        case CircuitBreakerState.Closed(_) => timeoutEffect(effect, settings) {
+          case Left(ex) => state.update(_.incrementFailures(settings)) *> F.raiseError(ex)
+          case Right(value) => state.update(_.reset) *> F.pure(value)
+        }
+        case CircuitBreakerState.Open(expiresAt)  =>
+          if(expiresAt < System.currentTimeMillis()) state.update(_ => CircuitBreakerState.HalfOpen) *> attemptClose(effect)
+          else F.raiseError(OpenException)
+      }
     } yield res
-}
-object CircuitBreaker {
 
-  protected [goedverhaal] sealed trait State {
-    def protect[F[_], A](effect: F[A], settings: Settings, state: MVar[F, State])(implicit F: Concurrent[F], T: Timer[F]): F[A]
+  private def attemptClose[A](effect: F[A]): F[A] = timeoutEffect(effect, settings) {
+    case Right(value) =>
+      state.update(_.reset) *> F.pure(value)
+    case Left(ex) =>
+      state.update(_ => CircuitBreakerState.Open(System.currentTimeMillis() + settings.resetTimeout.toMillis)) *> F.raiseError(ex)
   }
 
-  private def currentTime[A, F[_]](implicit T: Timer[F]) =
-    T.clockRealTime(TimeUnit.MILLISECONDS)
-
-  private def set[F[_] : Sync](state: MVar[F, State], actual: State): F[Unit] =
-    state.take *> state.put(actual)
-
-  private def timeoutEffect[A, F[_] : Concurrent : Timer](effect: F[A],
-                                                          settings: Settings)(f: Either[Throwable, A] => F[A]): F[A] =
+  private def timeoutEffect[A](effect: F[A], settings: CircuitBreaker.Settings)(f: Either[Throwable, A] => F[A]): F[A] =
     Concurrent[F].attempt(Concurrent.timeout[F, A](effect, settings.callTimeout)).flatMap(f)
+}
 
-  protected [goedverhaal] case class Closed(failures: Int) extends State {
-    override def protect[F[_], A](effect: F[A], settings: Settings, state: MVar[F, State])(implicit F: Concurrent[F], T: Timer[F]): F[A] =
-      timeoutEffect(effect, settings) {
-        case Right(value) =>
-          set(state, Closed(0)) *> F.pure(value)
-        case Left(ex) =>
-          println(s"[$failures] error: $ex")
-          if(failures < settings.failures) set(state, Closed(failures + 1)) *> F.raiseError(ex)
-          else currentTime(T).flatMap(ts => set(state, Open(ts))) *> F.raiseError(ex)
-      }
+
+protected [goedverhaal] sealed trait CircuitBreakerState {
+  def reset: CircuitBreakerState
+  def incrementFailures(settings: CircuitBreaker.Settings): CircuitBreakerState
+}
+protected [goedverhaal] object CircuitBreakerState {
+  final case object HalfOpen extends CircuitBreakerState {
+    def reset: CircuitBreakerState = Closed(0)
+    def incrementFailures(settings: CircuitBreaker.Settings): CircuitBreakerState = this
   }
-
-  protected [goedverhaal] case class Open(startedAt: Long) extends State {
-
-    override def protect[F[_], A](effect: F[A], settings: Settings, state: MVar[F, State])(implicit F: Concurrent[F], T: Timer[F]): F[A] = {
-
-      def attemptClose: F[A] = timeoutEffect(effect, settings) {
-        case Right(value) =>
-          set(state, Closed(0)) *> F.pure(value)
-        case Left(ex) =>
-          currentTime.flatMap(ts => set(state, Open(ts))) *> F.raiseError(ex)
-      }
-
-      for {
-        ts <- currentTime
-        result <- if(ts >= startedAt + settings.resetTimeout.toMillis) set(state, HalfOpen) *> attemptClose
-                  else F.raiseError(OpenException)
-      } yield result
-    }
-
+  final case class Closed(failures: Int) extends CircuitBreakerState {
+    def reset: CircuitBreakerState = Closed(0)
+    def incrementFailures(settings: CircuitBreaker.Settings): CircuitBreakerState =
+      if(failures + 1 == settings.failures) Open(System.currentTimeMillis() + settings.resetTimeout.toMillis)
+      else Closed(failures + 1)
   }
-
-
-
-  protected [goedverhaal] case object HalfOpen extends State {
-    override def protect[F[_], A](effect: F[A], settings: Settings, state: MVar[F, State])(implicit F: Concurrent[F], T: Timer[F]): F[A] =
-      F.raiseError(OpenException)
+  final case class Open(expiresAt: Long) extends CircuitBreakerState {
+    def reset: CircuitBreakerState = Closed(0)
+    def incrementFailures(settings: CircuitBreaker.Settings): CircuitBreakerState = this
   }
+}
 
+object CircuitBreaker {
   final case object OpenException extends Exception with NoStackTrace
 
   final case class Settings(failures: Int, callTimeout: FiniteDuration, resetTimeout: FiniteDuration)
 
   def apply[F[_] : Concurrent : Timer](settings: Settings): F[CircuitBreaker[F]]=
-    MVar.of(Closed(0): State).map(state => new CircuitBreaker[F](state, settings))
+    Ref.of(CircuitBreakerState.Closed(0) : CircuitBreakerState).map(state => new CircuitBreaker[F](state, settings))
 }
